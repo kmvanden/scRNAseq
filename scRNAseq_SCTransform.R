@@ -83,6 +83,28 @@ FeaturePlot(pbmc, features = c("CD3D", "ISG15", "TCL1A",
             pt.size = 0.2, ncol = 3)
 
 
+### use of SCTransform with Harmonry integration
+# https://github.com/satijalab/seurat/issues/4896
+# you can do SCTransform(object, return.only.var.genes = FALSE) to return residuals for all genes.
+
+data("pbmc")
+
+pbmc.list <- SplitObject(pbmc, split.by="Method")
+pbmc.list <- lapply(X = pbmc.list, 
+                       FUN = SCTransform, 
+                       method = "glmGamPoi", 
+                       return.only.var.genes = FALSE)
+var.features <- SelectIntegrationFeatures(object.list = pbmc.list, nfeatures = 3000)
+
+pbmc.sct <- merge(x = pbmc.list[[1]], y = pbmc.list[2:length(pbmc.list)], merge.data=TRUE)
+VariableFeatures(pbmc.sct) <- var.features
+pbmc.sct <- RunPCA(pbmc.sct, verbose = FALSE)
+pbmc.sct <- RunHarmony(pbmc.sct, assay.use="SCT", group.by.vars = "Method")
+pbmc.sct <- RunUMAP(pbmc.sct, reduction = "harmony", dims = 1:30)
+pbmc.sct <- FindNeighbors(pbmc.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+DimPlot(pbmc.sct, group.by = c("Method", "ident", "CellType"), ncol = 3)
+
+
 sessionInfo()
 # R version 4.5.0 (2025-04-11)
 # Platform: aarch64-apple-darwin20
