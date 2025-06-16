@@ -28,6 +28,11 @@
 #### Eliminates batch effects/technical variation (e.g., sequencing depth).
 - Normalizes the feature expression measurements for each cell by the total expression, then multiples this by a scale factor (10,000) and log-transforms the result.
     - ```NormalizeData(normalization.method = "LogNormalize", scale.factor = 10000)```
+> ```SCTransform()``` can be used in the workflow in place of ```NormalizeData()```, ```FindVariableFeatures()``` and ```ScaleData()```.
+> Log normalization relies on the assumption that each cell originally contained the same number of molecules: SCTransform does not make this assumption.
+> Confounding sources of variation, like high mitochondrial percentages, can also be removed with SCTransform().
+   > ```PercentageFeatureSet(pattern = "^MT-", col.name = "percent.mt")``` followed by
+   > ```SCTransform(vars.to.regress = "percent.mt", verbose = FALSE)```
 
 ### Find variable features
 #### Cells with low cell-to-cell variation (i.e., housekeeping genes) are not very informative, whereas focusing on variable genes helps to highlight the biological signal in single-cell datasets.
@@ -84,10 +89,12 @@
 > UMAP can be used for visualization, but biological conclusions should not be drawn solely from this visualization technique
 
 ### Correct for batch effects 
-#### Were batch effects observed in the UMAP = cells clustering for reasons other the biological variability
+#### Perform integration if batch effects were observed in the UMAP (e.g., cells clustering based on batches, donors or conditions)
 1. Perform integration
-    - IntegrateLayers(method = HarmonyIntegration, orig.reduction = “pca”, new.reduction = “harmony”)
-    * Performs integration in low-dimensional space and returns a dimensional object
+    - ```IntegrateLayers(method = HarmonyIntegration, orig.reduction = “pca”, new.reduction = “harmony”)```
+    - Performs integration in low-dimensional space and returns a dimensional object (in reductions slot: pca, umap and harmony)
+> [!NOTE]
+> Seurat supports five integration methods: Anchor-based CCA integration, Anchor-based RPCA integration, Harmony, FastMNN, and scVI.
 2. Repeat clustering with integrated data
     - ```FindNeighbors(reduction = “harmony”)``` 
     - ```FindClusters(cluster.name = “harmony_clusters”)```
@@ -96,9 +103,24 @@
 4. Visualize the results to see if batch effects persist
     - ```DimPlot(reduction = “umap_harmony”)```
     - ```VlnPlot(group.by = “harmony_clusters”)```
-5. Rejoin the layers if you want to perform differential expression analysis
-    - Collapses the individual datasets together and recreates the original counts and data layers
-    - ```JoinLayers()```  (this needs to be done before performing any differential expression analysis)
-> [!NOTE]
-> Seurat supports five integration methods: Anchor-based CCA integration, Anchor-based RPCA integration, Harmony, FastMNN, and scVI.
+5. Integration can be performed after using ```SCTransform()````
+    - ```SCTransform()```
+    - ```RunPCA()```
+    - ```RunHarmony(assay.use="SCT", group.by.vars = "Method")```
+    - ```FindNeighbors(reduction = "harmony")```
+    - ```FindClusters()```
+    - ```RunUMAP(reduction = "harmony")```
+    - ```DimPlot(group.by = "Method")```
+6. Rejoin the layers
+    - Collapses the individual datasets together and recreates the original counts and data layers.
+    - ```JoinLayers()```
+> [!IMPORTANT]
+> Layers need to be rejoined before performing differential expression analysis.
 
+
+<!-- Obtain predicted annotations with Azimuth -->
+<!-- ```RunAzimuth(reference = "pbmcref")```: Returns a Seurat object containing celltype annotations -->
+<!-- uses an annotated reference dataset to automate the processing, analysis, and interpretation of a scRNAseq data; uses a 'reference-based mapping' pipeline that inputs a counts matrix and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
+<!-- Once Azimuth is run, a Seurat object is returned which contains: Cell annotations (at multiple levels of resolution); Prediction scores (i.e. confidence scores) for each annotation; Projection onto the reference-derived 2-dimensional UMAP visualization -->
+<!-- Azimuth leverages a ‘reference-based mapping’ pipeline that inputs a counts matrix of gene expression in single cells, and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
+<!-- The Seurat RunUMAP() output is created in an unsupervised manner and thus is only representative of the heterogeneity of your data. The Azimuth "umap.ref" is created by projecting your query data onto the reference object's UMAP. I would use the unsupervised UMAP as this can piece out the heterogeneity of your data better. You should still use the azimuth annotations, but the "umap.ref" will be representative of the low dimensional space of the reference and thus is not necessarily the best way to capture your object. -->
