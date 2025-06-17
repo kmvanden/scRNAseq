@@ -154,12 +154,6 @@
     - Get the marker genes from each reference dataset for each cell type: ```metadata(pred$orig.results$HPCA)$de.genes``` and ```metadata(com.res2$orig.results$DICE)$de.genes```
 > [!NOTE]
 > Lack of consistency in cell labels across references can complicate interpretation.
-<!-- Obtain predicted annotations with Azimuth -->
-<!-- ```RunAzimuth(reference = "pbmcref")```: Returns a Seurat object containing celltype annotations -->
-<!-- uses an annotated reference dataset to automate the processing, analysis, and interpretation of a scRNAseq data; uses a 'reference-based mapping' pipeline that inputs a counts matrix and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
-<!-- Once Azimuth is run, a Seurat object is returned which contains: Cell annotations (at multiple levels of resolution); Prediction scores (i.e. confidence scores) for each annotation; Projection onto the reference-derived 2-dimensional UMAP visualization -->
-<!-- Azimuth leverages a ‘reference-based mapping’ pipeline that inputs a counts matrix of gene expression in single cells, and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
-<!-- The Seurat RunUMAP() output is created in an unsupervised manner and thus is only representative of the heterogeneity of your data. The Azimuth "umap.ref" is created by projecting your query data onto the reference object's UMAP. I would use the unsupervised UMAP as this can piece out the heterogeneity of your data better. You should still use the azimuth annotations, but the "umap.ref" will be representative of the low dimensional space of the reference and thus is not necessarily the best way to capture your object. -->
 
 ### Differential gene expression
 1. Identify genes that are differentially expressed between conditions for a given cluster.
@@ -167,13 +161,16 @@
         - ```obj$cluster.cnd <- paste0(obj$cluster,"_", obj$condition)```
         - ```Idents(obj) <- obj$cluster.cnd```
     - Find differential markers between the groups
-        - data.frame <- FindMarkers(obj, ident.1 = "cluster.cnd_1", ident.2 = "cluster.cnd_2")
+        - ```data.frame <- FindMarkers(obj, ident.1 = "cluster.cnd_1", ident.2 = "cluster.cnd_2")```
+    - Visualize the differential gene expression
         - ```FeaturePlot(features = c("FCGR3A", "VMO1"), split.by = "stim", min.cutoff = "q10")```
         - ```VlnPlot(features = c("FCGR3A", "VMO1"))```
         - ```DotPlot(features = c("FCGR3A", "VMO1"), split.by = "stim")```
-
-
-
-
-
-
+<!--2. Pseudobulking + differential expression analysis -->
+<!-- - Aggregate the counts and metadata to the sample level and then use existing bulk RNAseq DE frameworks (e.g, DESeq2). -->
+<!-- - Single cell methods treat each cell as a sample: p-values are inflated, variation across the population is not truly investigated, and -->
+<!-- there are issues with unmodelled correlations between samples (the samples/single cells are not independent of each other). -->
+<!-- - Create a new column containing both sample id and condition information. -->
+<!--     - ```seu.filtered$samples <- paste0(seu.filtered$stim, seu.filtered$ind)``` -->
+<!-- - Aggregate counts across the cell type and sample -->
+<!--    - ```cts <- AggregateExpression(seu.filtered, group.by = c("cell", "samples"), assays = 'originalexp', slot = "counts", return.seurat = FALSE)``` -->
