@@ -238,7 +238,6 @@ table(converted_col$converted_col)
 head(pbmc.seurat.filtered)
 pbmc.seurat.filtered$com.res3.ont.labels <- converted_col$converted_col
 
-
 # UMAP with mapping data
 DimPlot(pbmc.seurat.filtered, reduction = 'umap', group.by = 'com.res3.labels', label = TRUE)
 # UMAP with colData
