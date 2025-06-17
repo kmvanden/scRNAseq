@@ -67,12 +67,13 @@
 > scRNAseq has a highly non-linear structure, so PCA alone is not best suited for data visualization.
 
 ### Cluster the cells
-#### 1. Cells are embedded into a graph structure, edges are drawn between cells with similar feature expression patterns, and the graph is partitioned into highly interconnected communties/clusters.
+#### Cells are embedded into a graph structure, edges are drawn between cells with similar feature expression patterns, and the graph is partitioned into highly interconnected communties/clusters.
+> k-means clustering randomly initializes _k_ cluster centers, assigns points to nearest center and then updates the cluster centers and repeats the assignment process until the centers stop changing. Intitial cluster centers are randomly assigned: set a seed ```set.seed(1234)``` for consistent clustering. 
 
 1. A k-nearest neighbors (kNN) graph is constructed based on the Euclidean distance in the PCA space and the edge weights between any two cells are refined based on the shared overlap in their local neighborhoods (Jaccard similarity).
     - ```FindNeighbors(dims = # of PCs decided upon in the previous step)```
 2. Modularity optimization techniques (default = Louvain algorithm) are applied to iteratively group cells together with the goal of optimizing the standard modularity function.
-    - ```FindClusters(resolution = c(0.1,0.3, 0.5, 0.7, 1))```
+    - ```FindClusters(resolution = c(0.1, 0.3, 0.5, 0.7, 1))```
     - Resolution parameter sets the granularity of the downstream clustering = higher values result in greater numbers of clusters
     * 0.4 -1.2 typically has good results for single-cell datasets of around 3000 cells and optimal resolution often increases for larger datasets
     - Visulaize the effect of the different resolution values
@@ -117,10 +118,62 @@
 > [!IMPORTANT]
 > Layers need to be rejoined before performing differential expression analysis.
 
-
+### Cluster identification
+1. Identify marker genes for the clusters and assign the annotations manually.
+    - If your clusters are composed of cells from more than one condition (e.g., control and stimulated).
+    - ```FindConservedMarkers(ident.1 = 3, grouping.var = "stim")```
+        - Finds the markers in cluster three that are concerved between the control and stimulated groups.
+    - Not setting ```ident.2``` to a specific cluster compares the cluster in ```ident.1``` to all other clusters.
+    - Visulaize the identified markers
+        - ```VlnPlot(features = c("FCGR3A"))```
+        - ```FeaturePlot(features = c("FCGR3A"), min.cutoff = "q10")```
+        - ```min.cutoff = "q10"```: genes in the tenth quartile will appear grey, increasing contrast.
+    - Rename the cluster based on the identified markers.
+        - ```Idents()```
+        - ```RenameIdents("3" = "CD16 Mono")```
+2. Annotation using a reference Seurat object
+- Find a set of anchors between a reference and a query object.
+    - ```anchors <- FindTransferAnchors(reference = reference, query = query, dims = 1:30, reference.reduction = "pca")```
+- Use anchors to transfer data from the reference to the query object.
+    - ```predictions <- TransferData(anchorset = anchors, refdata = reference$celltype, dims = 1:30)```
+- Add the cell type predictions to the query metadata
+    - ```query <- AddMetaData(query, metadata = predictions)```
+- Verify cell type predictions by examining canonical cell type marker expression in the clusters.
+    - ```VlnPlot(query, c("REG1A", "PPY"), group.by = "predicted.id")```
+3. Automated annotation using an annotated object from a database
+- The reference needs to contain a cell population sufficiently similar to the cell population in your query object. Using multiple references increases the likelihood that the cell types in your query are accounted for.
+    - celldex: provides a collection of reference expression datasets with curated cell type labels.
+    - SingleR: uses reference transcriptomic datasets of pure cell types to infer the cell of origin of each of the single cells independently.
+    - Default method: performs classification seperately with each reference and then combines the results and chooses the highest overall prediction score.
+    - Load the reference libraries: ```hpca <- celldex::HumanPrimaryCellAtlasData()``` and ```dice <- celldex::DatabaseImmuneCellExpressionData()```
+    - Get the counts from you query dataset: ```counts <- GetAssayData(obj, slot = "counts")```
+    - Run SingleR: ```pred <- SingleR(test = counts, ref = list(HPCA = hpca, DICE = dice), labels = list(hpca$label.main, dice$label.main))```
+    - Save the cell type labels to the Seurat metadata: ```obj$pred.labels <- pred[match(rownames(obj@meta.data), rownames(pred)), "labels"]```
+        - May have to fix inconsistencies with cell labels.
+    - Visualize the labels: ```DimPlot(obj, reduction = "umap", group.by = "pred.labels", label = TRUE)```
+    - Get the marker genes from each reference dataset for each cell type: ```metadata(pred$orig.results$HPCA)$de.genes``` and ```metadata(com.res2$orig.results$DICE)$de.genes```
+> [!NOTE]
+> Lack of consistency in cell labels across references can complicate interpretation.
 <!-- Obtain predicted annotations with Azimuth -->
 <!-- ```RunAzimuth(reference = "pbmcref")```: Returns a Seurat object containing celltype annotations -->
 <!-- uses an annotated reference dataset to automate the processing, analysis, and interpretation of a scRNAseq data; uses a 'reference-based mapping' pipeline that inputs a counts matrix and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
 <!-- Once Azimuth is run, a Seurat object is returned which contains: Cell annotations (at multiple levels of resolution); Prediction scores (i.e. confidence scores) for each annotation; Projection onto the reference-derived 2-dimensional UMAP visualization -->
 <!-- Azimuth leverages a ‘reference-based mapping’ pipeline that inputs a counts matrix of gene expression in single cells, and performs normalization, visualization, cell annotation, and differential expression (biomarker discovery). -->
 <!-- The Seurat RunUMAP() output is created in an unsupervised manner and thus is only representative of the heterogeneity of your data. The Azimuth "umap.ref" is created by projecting your query data onto the reference object's UMAP. I would use the unsupervised UMAP as this can piece out the heterogeneity of your data better. You should still use the azimuth annotations, but the "umap.ref" will be representative of the low dimensional space of the reference and thus is not necessarily the best way to capture your object. -->
+
+### Differential gene expression
+1. Identify genes that are differentially expressed between conditions for a given cluster.
+    - Create a column that has information about both cluster and condition.
+        - ```obj$cluster.cnd <- paste0(obj$cluster,"_", obj$condition)```
+        - ```Idents(obj) <- obj$cluster.cnd```
+    - Find differential markers between the groups
+        - data.frame <- FindMarkers(obj, ident.1 = "cluster.cnd_1", ident.2 = "cluster.cnd_2")
+        - ```FeaturePlot(features = c("FCGR3A", "VMO1"), split.by = "stim", min.cutoff = "q10")```
+        - ```VlnPlot(features = c("FCGR3A", "VMO1"))```
+        - ```DotPlot(features = c("FCGR3A", "VMO1"), split.by = "stim")```
+
+
+
+
+
+
