@@ -1,31 +1,40 @@
 # 🧬 Single-cell RNA Sequencing Workflow
 
 ### Create a Seurat object
-#### A Seurat object serves as a container for single-cell dataset data (e.g., count matrix) and analyses (PCA or clustering results).
-1. From the output of the CellRanger pipeline from 10X Genomics (raw data)
-    - Create a sparse count matrix by reading in the data ```Read10X_h5()```
-    - Convert the sparse count matrix in to a Seurat object ```CreateSeuratObject(min.cells = 3, min.features = 200)```
-    - If you have multiple sparse count matrices, you can use ```purr::map2(counts, meta, ~CreateSeuratObject(counts = as(.x, "sparseMatrix"), meta.data = .y))``` followed by ```purrr::reduce(objs, function(x,y) {merge(x,y)})```
-5. From datasets stored in SeuratData
-    - Load in data using ```LoadData())```
+##### A Seurat object serves as a container for single-cell dataset data (e.g., count matrix) and analyses (e.g., PCA or clustering results).
+1. From CellRanger output (folder containing barcodes.tsv, genes.tsv, and matrix.mtx)
+    - Create a sparse count matrix by reading in the data: ```Read10X()```
+    - Convert the sparse count matrix in to a Seurat object: ```CreateSeuratObject()```
+2. From CellRanger output (file ending in: count_raw_feature_bc_matrix.h5)
+    - Create a sparse count matrix by reading in the data: ```Read10X_h5()```
+    - Convert the sparse count matrix in to a Seurat object: ```CreateSeuratObject()```
+3. From GEO datasets with multiple samples
+    - Read in count and metadata files using: ```read_tsv()```
+    - Convert the files into Seurat objects: ```purr::map2(counts, meta, ~CreateSeuratObject(counts = as(.x, "sparseMatrix"), meta.data = .y))```
+    - Merge the objects into one Seurat object: ```purrr::reduce(obj, function(x,y) {merge(x,y)})```
+4. From datasets stored in SeuratData
+    - Load in data using: ```LoadData()```
 
 ### Quality control and filtering
-1. Mitochondrial genes/features
-    - A high percentage of mitochondrial genes = loq quality or dying cell
-    - Create new column using ```PercentageFeatureSet(pattern = "^MT-")```
-2. Number of unique genes/features detected in each cell (nFeature_RNA) and total number counts/molecules detected in each cell (nCount_RNA).
-    - A low number genes or counts = low quality cells or empty droplets
-    - A high number of genes or counts = doublets or multiplets
-- Create plots to explore data and determine thresholds 
+##### Low quality cells can be the result of cell damage or failure in library preparation, and typically manifest as cells with low total counts, a low level of expressed genes ot high mitochondrial proportions. If low quality cells are not removed, the first few principal components and the genes with the largest variances will be driven quality rather than biology.
+1. Proportion of mitochondrial genes
+    - A high percentage of mitochondrial genes is indicative of low quality or dying cells, due to the loss of cytoplasmic RNA from perforated cells.
+    - Create new column using: ```PercentageFeatureSet(pattern = "^MT-")```
+2. Number of unique genes detected in each cell (nFeature_RNA)
+    - Low numbers of unique genes is likely a low quality cell, because the diverse transcript population has not been successfully captured.
+3. Total number counts detected in each cell (nCount_RNA)
+    - Low number of counts is indicative of low quality cells, due to RNA having been lost at some point during the library preparation (e.g., cell lysis or inefficient cDNA capture and amplification).
+- A high number of genes or counts an be indicative of doublets or multiplets.
+- Create plots to explore data and determine thresholds. 
     - ```VlnPlot(nsclc_seu, features = c("nCount_RNA", "nFeature_RNA", "percent_mt"), ncol = 3)``` 
     - ```FeatureScatter(nsclc_seu, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + geom_smooth(method = 'lm')```
-- Filter data according to the determined thresholds
+- Filter data according to the determined thresholds.
     - ```subset(subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)```
 > [!NOTE]
-> Quality control metrics are dependent on cell type.
+> Quality control metrics are dependent on cell type (e.g, hepatocytes are highly metabolically active and therefore have higher mitochondrial percentages than other cells) and data type (e.g., counts-based data vs UMI-based data).
 
 ### Normalize data
-#### Eliminates batch effects/technical variation (e.g., sequencing depth).
+##### Eliminates batch effects/technical variation (e.g., sequencing depth).
 - Normalizes the feature expression measurements for each cell by the total expression, then multiples this by a scale factor (10,000) and log-transforms the result.
     - ```NormalizeData(normalization.method = "LogNormalize", scale.factor = 10000)```
 > ```SCTransform()``` can be used in the workflow in place of ```NormalizeData()```, ```FindVariableFeatures()``` and ```ScaleData()```.
@@ -35,21 +44,20 @@
    > ```SCTransform(vars.to.regress = "percent.mt", verbose = FALSE)```
 
 ### Find variable features
-#### Cells with low cell-to-cell variation (i.e., housekeeping genes) are not very informative, whereas focusing on variable genes helps to highlight the biological signal in single-cell datasets.
+##### Cells with low cell-to-cell variation (i.e., housekeeping genes) are not very informative, whereas focusing on variable genes helps to highlight the biological signal in single-cell datasets.
 1. Find variable features ```FindVariableFeatures(nfeatures = 2000)``` 
 2. Examine the variable features ```VariableFeaturePlot(): look at most variable genes```
 * Variable features are used with in downstream analyses (e.g., PCA).
 
 ### Scale data
-#### This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate.
+##### This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate.
 1. Shifts the expression of each gene, so that the mean expression across cells is 0.
 2. Scales the expression of each gene, so that the variance across cells is 1.
     - ```ScaleData(features = default is variable features)```
 * Standard pre-processing step prior to dimensional reduction techniques like PCA
 
 ### Linear dimensional reduction (PCA)
-#### Linear transformation of the original dataset into principal components ranked in decreasing order of variance 
-  #### The variance of the data is maximized in the lower dimensional space
+##### Linear transformation of the original dataset into principal components ranked in decreasing order of variance. The variance of the data is maximized in the lower dimensional space.
 - Dimensionality reduction has two components:
     - Feature selection (selection of a smaller subset from the original set of variables)
         - Based on the assumption that genes showing high variability correspond to biological variation
@@ -67,7 +75,7 @@
 > scRNAseq has a highly non-linear structure, so PCA alone is not best suited for data visualization.
 
 ### Cluster the cells
-#### Cells are embedded into a graph structure, edges are drawn between cells with similar feature expression patterns, and the graph is partitioned into highly interconnected communties/clusters.
+##### Cells are embedded into a graph structure, edges are drawn between cells with similar feature expression patterns, and the graph is partitioned into highly interconnected communties/clusters.
 > k-means clustering randomly initializes _k_ cluster centers, assigns points to nearest center and then updates the cluster centers and repeats the assignment process until the centers stop changing. Intitial cluster centers are randomly assigned: set a seed ```set.seed(1234)``` for consistent clustering. 
 
 1. A k-nearest neighbors (kNN) graph is constructed based on the Euclidean distance in the PCA space and the edge weights between any two cells are refined based on the shared overlap in their local neighborhoods (Jaccard similarity).
@@ -81,7 +89,7 @@
       - ```Idents() <- 'RNA_snn_res.0.1'```
 
 ### Non-linear dimensional reduction (UMAP)
-#### Cells that are grouped together within graph-based clusters determined during the clustering step should co-localize on these dimension reduction plots
+##### Cells that are grouped together within graph-based clusters determined during the clustering step should co-localize on these dimension reduction plots
 1. Run non-linear dimensional reduction and examine the results
     - ```RunUMAP(dims = # of PCs determined previously)```
     - ```DimPlot(reduction = “umap”)```
@@ -90,7 +98,7 @@
 > UMAP can be used for visualization, but biological conclusions should not be drawn solely from this visualization technique. More information on UMAP interpretation can be found here: [Is UMAP Accurate?](https://nikolay-oskolkov.medium.com/is-umap-accurate-fad1b3f14fb5)
 
 ### Correct for batch effects 
-#### Perform integration if batch effects were observed in the UMAP (e.g., cells clustering based on batches, donors or conditions)
+##### Perform integration if batch effects were observed in the UMAP (e.g., cells clustering based on batches, donors or conditions)
 1. Perform integration
     - ```IntegrateLayers(method = HarmonyIntegration, orig.reduction = “pca”, new.reduction = “harmony”)```
     - Performs integration in low-dimensional space and returns a dimensional object (in reductions slot: pca, umap and harmony)
@@ -177,3 +185,7 @@
         - ```FindMarkers(object = obj, ident.1 = "CD14 Mono_STIM", ident.2 = "CD14 Mono_CTRL", test.use = "DESeq2")```
 > [!NOTE]
 > Differential expression analysis using ```FindMarkers()``` can be performed using alternative tests, including: "wilcox", "wilcox_limma", "bimod", "roc", "t", "poisson", "negbiom", "LR" and "MAST".
+
+### Useful references
+- [Basics of Single-Cell Analysis with Bioconductor
+](https://bioconductor.org/books/3.21/OSCA.basic/)
