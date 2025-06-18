@@ -5,9 +5,9 @@
 1. From the output of the CellRanger pipeline from 10X Genomics (raw data)
     - Create a sparse count matrix by reading in the data ```Read10X_h5()```
     - Convert the sparse count matrix in to a Seurat object ```CreateSeuratObject(min.cells = 3, min.features = 200)```
+    - If you have multiple sparse count matrices, you can use ```purr::map2(counts, meta, ~CreateSeuratObject(counts = as(.x, "sparseMatrix"), meta.data = .y))``` followed by ```purrr::reduce(objs, function(x,y) {merge(x,y)})```
 5. From datasets stored in SeuratData
     - Load in data using ```LoadData())```
-<!-- Merge the multiple Seurat objects into one object, if needed, for easier downstream manipulation. -->
 
 ### Quality control and filtering
 1. Mitochondrial genes/features
@@ -95,7 +95,7 @@
     - ```IntegrateLayers(method = HarmonyIntegration, orig.reduction = “pca”, new.reduction = “harmony”)```
     - Performs integration in low-dimensional space and returns a dimensional object (in reductions slot: pca, umap and harmony)
 > [!NOTE]
-> Seurat supports five integration methods: Anchor-based CCA integration, Anchor-based RPCA integration, Harmony, FastMNN, and scVI.
+> Seurat supports five integration methods: Anchor-based CCA integration, Anchor-based RPCA integration, Harmony, FastMNN, and scVI. More information about batch correction can be found here: [Batch Correction](https://www.biorxiv.org/content/10.1101/2024.03.19.585562v1).
 2. Repeat clustering with integrated data
     - ```FindNeighbors(reduction = “harmony”)``` 
     - ```FindClusters(cluster.name = “harmony_clusters”)```
