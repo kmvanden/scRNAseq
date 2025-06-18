@@ -1,6 +1,7 @@
 # Pseudobulking and Differential Expression Analysis
 # https://satijalab.org/seurat/articles/de_vignette
 # https://www.melbournebioinformatics.org.au/tutorials/tutorials/seurat-de/seurat-de/#step-3-find-differentially-expressed-genes-degs-between-our-two-conditions-using-cd16-mono-cells-as-an-example
+# https://satijalab.org/seurat/articles/parsebio_sketch_integration
 
 # setwd
 setwd("/Users/kristinvandenham/kmvanden/RStudio/")
@@ -9,6 +10,7 @@ setwd("/Users/kristinvandenham/kmvanden/RStudio/")
 library(Seurat)
 library(tidyverse)
 library(pheatmap)
+library(ggrepel)
 
 # load the data (use ifb_harmony.rds file generated during scRNAseq_markers_clusterid.R script
 ifnb_harmony_de <- readRDS(file = "ifnb_harmony_de.rds")
@@ -46,13 +48,16 @@ ifnb_harmony_de$donor_id[is.na(ifnb_harmony_de$donor_id)] <- "unknown"
 ifnb_harmony_de <- subset(ifnb_harmony_de, subset = donor_id != "unknown")
 table(ifnb_harmony_de$donor_id)
 
+
 # sum together the gene counts of all the cells from the same sample, condition and cell type
 pseudo_ifnb <- AggregateExpression(ifnb_harmony_de, assays = "RNA", return.seurat = TRUE, group.by = c("stim", "donor_id", "seurat_annotations"))
 head(pseudo_ifnb@meta.data)
+head(Cells(pseudo_ifnb))
 
 # add a column combining both cell type and stimulation
 pseudo_ifnb$celltype.stim <- paste(pseudo_ifnb$seurat_annotations, pseudo_ifnb$stim, sep = "_")
 table(pseudo_ifnb$celltype.stim)
+
 
 ### perform DE analysis using DESeq2 at the sample level (samples, not the individual cells, are treated as independent observations)
 Idents(pseudo_ifnb) <- "celltype.stim"
@@ -68,7 +73,7 @@ length(bulk.CD14.de.genes) # 1387
 head(Cells(pseudo_ifnb)) # cells are stim/donor/cell groups
 
 
-### examine signficiant DEGs defined by the pseudobulk approach
+### examine significant DEGs defined by the pseudobulk approach
 CD14.sig.markers <- bulk.ifnb.CD14.de %>% 
   dplyr::filter(p_val_adj < 0.05) %>%
   dplyr::mutate(gene = rownames(.))
@@ -109,6 +114,26 @@ sig.DEG.heatmap <- pheatmap(CD14.sig.avg.Expression.mat, cluster_rows = TRUE, sh
                             annotation_names_col = FALSE)
 
 
+### subset data to a specific cell type
+head(pseudo_ifnb@meta.data)
+CD14_bulk <- subset(pseudo_ifnb, seurat_annotations == "CD14 Mono")
+Idents(CD14_bulk) <- "stim"
+
+# find markers
+de_markers_CD14 <- FindMarkers(CD14_bulk, ident.1 = "CTRL", ident.2 = "STIM",
+                               slot = "counts", test.use = "DESeq2", verbose = FALSE)
+
+# create gene column from rownames
+de_markers_CD14$gene <- rownames(de_markers_CD14)
+
+# plot volcano plot
+ggplot(de_markers_CD14, aes(avg_log2FC, -log10(p_val))) + 
+  geom_point(size = 0.5, alpha = 0.5) + theme_bw() + 
+  ylab("-log10(unadjusted p-value)") + 
+  geom_text_repel(aes(label = ifelse(p_val_adj < 0.01, gene, "")), 
+                  colour = "red", size = 3)
+
+
 sessionInfo()
 # R version 4.5.0 (2025-04-11)
 # Platform: aarch64-apple-darwin20
@@ -128,9 +153,10 @@ sessionInfo()
 #   [1] stats     graphics  grDevices utils     datasets  methods   base     
 # 
 # other attached packages:
-#   [1] pheatmap_1.0.13    lubridate_1.9.4    forcats_1.0.0      stringr_1.5.1      dplyr_1.1.4       
-# [6] purrr_1.0.4        readr_2.1.5        tidyr_1.3.1        tibble_3.3.0       ggplot2_3.5.2     
-# [11] tidyverse_2.0.0    Seurat_5.3.0       SeuratObject_5.1.0 sp_2.2-0          
+#   [1] ggrepel_0.9.6      pheatmap_1.0.13    lubridate_1.9.4    forcats_1.0.0     
+# [5] stringr_1.5.1      dplyr_1.1.4        purrr_1.0.4        readr_2.1.5       
+# [9] tidyr_1.3.1        tibble_3.3.0       ggplot2_3.5.2      tidyverse_2.0.0   
+# [13] Seurat_5.3.0       SeuratObject_5.1.0 sp_2.2-0          
 # 
 # loaded via a namespace (and not attached):
 #   [1] RColorBrewer_1.1-3          rstudioapi_0.17.1           jsonlite_2.0.0             
@@ -144,21 +170,21 @@ sessionInfo()
 # [25] pkgconfig_2.0.3             Matrix_1.7-3                R6_2.6.1                   
 # [28] fastmap_1.2.0               MatrixGenerics_1.20.0       GenomeInfoDbData_1.2.14    
 # [31] fitdistrplus_1.2-2          future_1.58.0               shiny_1.10.0               
-# [34] digest_0.6.37               colorspace_2.1-1            patchwork_1.3.0            
-# [37] S4Vectors_0.46.0            DESeq2_1.48.1               tensor_1.5                 
+# [34] digest_0.6.37               colorspace_2.1-1            S4Vectors_0.46.0           
+# [37] patchwork_1.3.0             DESeq2_1.48.1               tensor_1.5                 
 # [40] RSpectra_0.16-2             irlba_2.3.5.1               GenomicRanges_1.60.0       
-# [43] progressr_0.15.1            spatstat.sparse_3.1-0       timechange_0.3.0           
-# [46] httr_1.4.7                  polyclip_1.10-7             abind_1.4-8                
-# [49] compiler_4.5.0              withr_3.0.2                 doParallel_1.0.17          
-# [52] BiocParallel_1.42.1         fastDummies_1.7.5           MASS_7.3-65                
-# [55] DelayedArray_0.34.1         tools_4.5.0                 lmtest_0.9-40              
-# [58] httpuv_1.6.16               future.apply_1.20.0         goftest_1.2-3              
-# [61] glue_1.8.0                  nlme_3.1-168                promises_1.3.3             
-# [64] grid_4.5.0                  Rtsne_0.17                  cluster_2.1.8.1            
-# [67] reshape2_1.4.4              generics_0.1.4              gtable_0.3.6               
-# [70] spatstat.data_3.1-6         tzdb_0.5.0                  data.table_1.17.4          
-# [73] hms_1.1.3                   XVector_0.48.0              BiocGenerics_0.54.0        
-# [76] spatstat.geom_3.4-1         RcppAnnoy_0.0.22            ggrepel_0.9.6              
+# [43] labeling_0.4.3              progressr_0.15.1            spatstat.sparse_3.1-0      
+# [46] timechange_0.3.0            httr_1.4.7                  polyclip_1.10-7            
+# [49] abind_1.4-8                 compiler_4.5.0              withr_3.0.2                
+# [52] doParallel_1.0.17           BiocParallel_1.42.1         fastDummies_1.7.5          
+# [55] MASS_7.3-65                 DelayedArray_0.34.1         tools_4.5.0                
+# [58] lmtest_0.9-40               httpuv_1.6.16               future.apply_1.20.0        
+# [61] goftest_1.2-3               glue_1.8.0                  nlme_3.1-168               
+# [64] promises_1.3.3              grid_4.5.0                  Rtsne_0.17                 
+# [67] cluster_2.1.8.1             reshape2_1.4.4              generics_0.1.4             
+# [70] gtable_0.3.6                spatstat.data_3.1-6         tzdb_0.5.0                 
+# [73] data.table_1.17.4           hms_1.1.3                   XVector_0.48.0             
+# [76] BiocGenerics_0.54.0         spatstat.geom_3.4-1         RcppAnnoy_0.0.22           
 # [79] RANN_2.6.2                  foreach_1.5.2               pillar_1.10.2              
 # [82] spam_2.11-1                 RcppHNSW_0.6.0              later_1.4.2                
 # [85] splines_4.5.0               lattice_0.22-7              survival_3.8-3             
@@ -174,5 +200,5 @@ sessionInfo()
 # [115] spatstat.univar_3.1-3       parallel_4.5.0              dotCall64_1.2              
 # [118] listenv_0.9.1               viridisLite_0.4.2           scales_1.4.0               
 # [121] ggridges_0.5.6              crayon_1.5.3                rlang_1.1.6                
-# [124] cowplot_1.1.3 
+# [124] cowplot_1.1.3          
 
