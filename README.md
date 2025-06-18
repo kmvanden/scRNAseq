@@ -24,7 +24,7 @@
     - Low numbers of unique genes is likely a low quality cell, because the diverse transcript population has not been successfully captured.
 3. Total number counts detected in each cell (nCount_RNA)
     - Low number of counts is indicative of low quality cells, due to RNA having been lost at some point during the library preparation (e.g., cell lysis or inefficient cDNA capture and amplification).
-- A high number of genes or counts an be indicative of doublets or multiplets.
+- A high number of genes or counts can be indicative of doublets or multiplets.
 - Create plots to explore data and determine thresholds. 
     - ```VlnPlot(nsclc_seu, features = c("nCount_RNA", "nFeature_RNA", "percent_mt"), ncol = 3)``` 
     - ```FeatureScatter(nsclc_seu, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + geom_smooth(method = 'lm')```
