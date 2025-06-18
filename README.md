@@ -87,7 +87,7 @@
     - ```DimPlot(reduction = “umap”)```
 * UMAP aims to preserve local distances in the dataset, but often does not preserve more glocal relationships
 > [!NOTE]
-> UMAP can be used for visualization, but biological conclusions should not be drawn solely from this visualization technique
+> UMAP can be used for visualization, but biological conclusions should not be drawn solely from this visualization technique. More information on UMAP interpretation can be found here: [Is UMAP Accurate?](https://nikolay-oskolkov.medium.com/is-umap-accurate-fad1b3f14fb5)
 
 ### Correct for batch effects 
 #### Perform integration if batch effects were observed in the UMAP (e.g., cells clustering based on batches, donors or conditions)
