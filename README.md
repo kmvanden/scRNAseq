@@ -166,11 +166,14 @@
         - ```FeaturePlot(features = c("FCGR3A", "VMO1"), split.by = "stim", min.cutoff = "q10")```
         - ```VlnPlot(features = c("FCGR3A", "VMO1"))```
         - ```DotPlot(features = c("FCGR3A", "VMO1"), split.by = "stim")```
-<!--2. Pseudobulking + differential expression analysis -->
-<!-- - Aggregate the counts and metadata to the sample level and then use existing bulk RNAseq DE frameworks (e.g, DESeq2). -->
-<!-- - Single cell methods treat each cell as a sample: p-values are inflated, variation across the population is not truly investigated, and -->
-<!-- there are issues with unmodelled correlations between samples (the samples/single cells are not independent of each other). -->
-<!-- - Create a new column containing both sample id and condition information. -->
-<!--     - ```seu.filtered$samples <- paste0(seu.filtered$stim, seu.filtered$ind)``` -->
-<!-- - Aggregate counts across the cell type and sample -->
-<!--    - ```cts <- AggregateExpression(seu.filtered, group.by = c("cell", "samples"), assays = 'originalexp', slot = "counts", return.seurat = FALSE)``` -->
+2. Pseudobulking + differential expression analysis
+    - Single cell methods treat each cell as a sample: p-values are inflated, variation across the population is not truly investigated, and there are issues with unmodelled correlations between samples (the samples/single cells are not independent of each other).
+    - Aggregate counts across sample, condition and cell type.
+        - ```pseudo_obj <- AggregateExpression(obj, assays = "RNA", return.seurat = TRUE, group.by = c("stim", "donor_id", "seurat_annotations"))```
+    - Create a column that has information about both cell type and condition.
+        - ```obj$celltype.stim <- paste(obj$seurat_annotations, obj$stim, sep = "_")```
+        - ```Idents(obj) <- "celltype.stim"```
+    - Perform differential expression analysis using DESeq2 at the sample level
+        - ```FindMarkers(object = obj, ident.1 = "CD14 Mono_STIM", ident.2 = "CD14 Mono_CTRL", test.use = "DESeq2")```
+> [!NOTE]
+> Differential expression analysis using ```FindMarkers()``` can be performed using alternative tests, including: "wilcox", "wilcox_limma", "bimod", "roc", "t", "poisson", "negbiom", "LR" and "MAST".
